@@ -1,0 +1,265 @@
+import React, { useState, useEffect } from 'react';
+import { useLocation, Navigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import Layout from './Layout';
+
+const Results = () => {
+  const location = useLocation();
+  const { data } = location.state || {};
+  const [expandedSections, setExpandedSections] = useState({});
+
+  // Redirect to upload if no data
+  if (!data) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Generate unique ID for collapsible sections
+  const generateId = () => Math.random().toString(36).substr(2, 9);
+
+  // Recursive renderer with collapsible sub-tables
+  const renderValue = (val, depth = 0, visited = new WeakSet()) => {
+    const maxDepth = 5;
+    if (depth > maxDepth) return <em>Max depth reached...</em>;
+
+    if (val && typeof val === "object") {
+      if (visited.has(val)) return <em>[Circular Reference]</em>;
+      visited.add(val);
+    }
+
+    if (typeof val === "number") {
+      return val <= 100 ? `${val.toFixed(2)}%` : val.toFixed(2);
+    }
+
+    if (Array.isArray(val)) {
+      if (val.length === 0) return <em>Empty array</em>;
+      
+      if (val.every(item => typeof item !== "object")) {
+        return (
+          <ul className="list-group mb-0">
+            {val.map((v, idx) => (
+              <li key={idx} className="list-group-item">
+                {renderValue(v, depth + 1, visited)}
+              </li>
+            ))}
+          </ul>
+        );
+      } else {
+        const headers = [...new Set(val.flatMap(item => Object.keys(item)))];
+        const collapseId = `collapse-array-${generateId()}`;
+        
+        return (
+          <CollapsibleSection 
+            id={collapseId} 
+            buttonText="Toggle Array"
+            content={
+              <table className="table table-sm table-bordered table-striped mb-2">
+                <thead className="table-light">
+                  <tr>
+                    {headers.map(h => <th key={h}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {val.map((item, idx) => (
+                    <tr key={idx}>
+                      {headers.map(h => (
+                        <td key={h}>{renderValue(item[h], depth + 1, visited)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            }
+          />
+        );
+      }
+    }
+
+    if (typeof val === "object" && val !== null) {
+      const keys = Object.keys(val);
+      if (keys.length === 0) return <em>Empty object</em>;
+      
+      const collapseId = `collapse-obj-${generateId()}`;
+      
+      return (
+        <CollapsibleSection
+          id={collapseId}
+          buttonText="Toggle Object"
+          content={
+            <table className="table table-sm table-bordered mb-0">
+              <tbody>
+                {keys.map(k => (
+                  <tr key={k}>
+                    <th className="bg-light">{k}</th>
+                    <td>{renderValue(val[k], depth + 1, visited)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          }
+        />
+      );
+    }
+
+    return val === null ? <em>null</em> : val.toString();
+  };
+
+  // Collapsible section component
+  const CollapsibleSection = ({ id, buttonText, content }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    const toggle = () => {
+      setIsExpanded(!isExpanded);
+      setExpandedSections(prev => ({ ...prev, [id]: !isExpanded }));
+    };
+
+    return (
+      <>
+        <button 
+          className="btn btn-sm btn-secondary mb-1" 
+          onClick={toggle}
+          type="button"
+        >
+          {buttonText}
+        </button>
+        <div className={`collapse ${isExpanded ? 'show' : ''}`}>
+          {content}
+        </div>
+      </>
+    );
+  };
+
+  // Toggle all collapse elements
+  const toggleAll = (expand = true) => {
+    const newExpandedState = {};
+    Object.keys(expandedSections).forEach(key => {
+      newExpandedState[key] = expand;
+    });
+    setExpandedSections(newExpandedState);
+  };
+
+  // Flatten JSON for row-wise export
+  const flattenForRowExport = (obj, prefix = "", res = []) => {
+    for (let key in obj) {
+      if (!obj.hasOwnProperty(key)) continue;
+      const newKey = prefix ? `${prefix} - ${key}` : key;
+
+      if (typeof obj[key] === "object" && obj[key] !== null) {
+        if (Array.isArray(obj[key])) {
+          obj[key].forEach((item, index) => {
+            if (typeof item === "object" && item !== null) {
+              flattenForRowExport(item, `${newKey}[${index}]`, res);
+            } else {
+              res.push([`${newKey}[${index}]`, item]);
+            }
+          });
+        } else {
+          flattenForRowExport(obj[key], newKey, res);
+        }
+      } else {
+        res.push([newKey, obj[key]]);
+      }
+    }
+    return res;
+  };
+
+  // CSV Export
+  const downloadCSV = () => {
+    const rows = flattenForRowExport(data);
+    const csvRows = rows.map(r => `"${r[0]}","${r[1] !== undefined ? r[1] : ""}"`);
+    csvRows.unshift('"Field","Value"');
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    saveAs(blob, "waterfall.csv");
+  };
+
+  // Excel Export
+  const downloadExcel = () => {
+    const rows = flattenForRowExport(data);
+    const ws_data = [["Field", "Value"], ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Waterfall");
+    XLSX.writeFile(wb, "waterfall.xlsx");
+  };
+
+  return (
+    <Layout title="Waterfall Extraction Results">
+      <h2 className="mb-4">Waterfall Extraction Results</h2>
+
+      {/* Export & Expand/Collapse Buttons */}
+      <div className="mb-3">
+        <button className="btn btn-sm btn-primary me-2" onClick={downloadCSV}>
+          Download CSV
+        </button>
+        <button className="btn btn-sm btn-success me-2" onClick={downloadExcel}>
+          Download Excel
+        </button>
+        <button className="btn btn-sm btn-info me-2" onClick={() => toggleAll(true)}>
+          Expand All
+        </button>
+        <button className="btn btn-sm btn-warning" onClick={() => toggleAll(false)}>
+          Collapse All
+        </button>
+      </div>
+
+      <div className="table-responsive">
+        {/* Waterfall Summary */}
+        {data.WaterfallSummary && (
+          <>
+            <h4>Waterfall Summary</h4>
+            <div className="card mb-3 p-3">
+              {data.WaterfallSummary}
+            </div>
+          </>
+        )}
+
+        {/* Waterfall Metrics */}
+        {data.WaterfallMetrics && (
+          <>
+            <h4>Waterfall Metrics</h4>
+            <table className="table table-bordered mb-4">
+              <tbody>
+                {Object.entries(data.WaterfallMetrics).map(([key, value]) => (
+                  <tr key={key}>
+                    <th className="table-dark">{key}</th>
+                    <td>{renderValue(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* Waterfall Steps */}
+        {data.WaterfallSteps && Array.isArray(data.WaterfallSteps) && (
+          <>
+            <h4>Waterfall Steps</h4>
+            {data.WaterfallSteps.map((step, idx) => {
+              const stepNumber = step.StepNumber || idx + 1;
+              return (
+                <div key={idx}>
+                  <h5 className="mt-3">Step {stepNumber}</h5>
+                  <table className="table table-bordered mb-3">
+                    <tbody>
+                      {Object.entries(step).map(([key, value]) => {
+                        if (key === "StepNumber") return null;
+                        return (
+                          <tr key={key}>
+                            <th className="table-dark">{key}</th>
+                            <td>{renderValue(value)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default Results;
