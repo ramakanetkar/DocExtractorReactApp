@@ -1,13 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, ReactNode } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import Layout from './Layout';
 
-const Results = () => {
+interface WaterfallStep {
+  StepNumber?: number;
+  Description?: string;
+  Threshold?: string | number;
+  Split?: {
+    LPs: number;
+    GP: number;
+  };
+  "Amount Distributed"?: number;
+  [key: string]: any;
+}
+
+interface WaterfallMetrics {
+  "Total Distribution"?: number;
+  "Number of Steps"?: number;
+  "Distribution Type"?: string;
+  "Management Fee"?: number;
+  "Carried Interest"?: number;
+  [key: string]: any;
+}
+
+interface ResultsData {
+  WaterfallSummary?: string;
+  WaterfallMetrics?: WaterfallMetrics;
+  WaterfallSteps?: WaterfallStep[];
+  [key: string]: any;
+}
+
+interface LocationState {
+  data?: ResultsData;
+}
+
+interface CollapsibleSectionProps {
+  id: string;
+  buttonText: string;
+  content: ReactNode;
+}
+
+interface ExpandedSections {
+  [key: string]: boolean;
+}
+
+const Results: React.FC = () => {
   const location = useLocation();
-  const { data } = location.state || {};
-  const [expandedSections, setExpandedSections] = useState({});
+  const state = location.state as LocationState;
+  const { data } = state || {};
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
 
   // Redirect to upload if no data
   if (!data) {
@@ -15,10 +58,10 @@ const Results = () => {
   }
 
   // Generate unique ID for collapsible sections
-  const generateId = () => Math.random().toString(36).substr(2, 9);
+  const generateId = (): string => Math.random().toString(36).substr(2, 9);
 
   // Recursive renderer with collapsible sub-tables
-  const renderValue = (val, depth = 0, visited = new WeakSet()) => {
+  const renderValue = (val: any, depth: number = 0, visited = new WeakSet()): ReactNode => {
     const maxDepth = 5;
     if (depth > maxDepth) return <em>Max depth reached...</em>;
 
@@ -105,10 +148,10 @@ const Results = () => {
   };
 
   // Collapsible section component
-  const CollapsibleSection = ({ id, buttonText, content }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+  const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ id, buttonText, content }) => {
+    const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-    const toggle = () => {
+    const toggle = (): void => {
       setIsExpanded(!isExpanded);
       setExpandedSections(prev => ({ ...prev, [id]: !isExpanded }));
     };
@@ -130,8 +173,8 @@ const Results = () => {
   };
 
   // Toggle all collapse elements
-  const toggleAll = (expand = true) => {
-    const newExpandedState = {};
+  const toggleAll = (expand: boolean = true): void => {
+    const newExpandedState: ExpandedSections = {};
     Object.keys(expandedSections).forEach(key => {
       newExpandedState[key] = expand;
     });
@@ -139,14 +182,14 @@ const Results = () => {
   };
 
   // Flatten JSON for row-wise export
-  const flattenForRowExport = (obj, prefix = "", res = []) => {
+  const flattenForRowExport = (obj: any, prefix: string = "", res: [string, any][] = []): [string, any][] => {
     for (let key in obj) {
       if (!obj.hasOwnProperty(key)) continue;
       const newKey = prefix ? `${prefix} - ${key}` : key;
 
       if (typeof obj[key] === "object" && obj[key] !== null) {
         if (Array.isArray(obj[key])) {
-          obj[key].forEach((item, index) => {
+          obj[key].forEach((item: any, index: number) => {
             if (typeof item === "object" && item !== null) {
               flattenForRowExport(item, `${newKey}[${index}]`, res);
             } else {
@@ -164,7 +207,7 @@ const Results = () => {
   };
 
   // CSV Export
-  const downloadCSV = () => {
+  const downloadCSV = (): void => {
     const rows = flattenForRowExport(data);
     const csvRows = rows.map(r => `"${r[0]}","${r[1] !== undefined ? r[1] : ""}"`);
     csvRows.unshift('"Field","Value"');
@@ -173,7 +216,7 @@ const Results = () => {
   };
 
   // Excel Export
-  const downloadExcel = () => {
+  const downloadExcel = (): void => {
     const rows = flattenForRowExport(data);
     const ws_data = [["Field", "Value"], ...rows];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
@@ -183,7 +226,7 @@ const Results = () => {
   };
 
   return (
-    <Layout title="Waterfall Extraction Results">
+    <Layout>
       <h2 className="mb-4">Waterfall Extraction Results</h2>
 
       {/* Export & Expand/Collapse Buttons */}

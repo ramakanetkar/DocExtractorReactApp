@@ -1,14 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from './Layout';
+import { useAuth } from '../context/AuthContext';
 
-const Upload = () => {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
+interface WaterfallStep {
+  StepNumber: number;
+  Description: string;
+  Threshold: string | number;
+  Split: {
+    LPs: number;
+    GP: number;
+  };
+  "Amount Distributed": number;
+}
+
+interface WaterfallMetrics {
+  "Total Distribution": number;
+  "Number of Steps": number;
+  "Distribution Type": string;
+  "Management Fee": number;
+  "Carried Interest": number;
+}
+
+interface MockResults {
+  WaterfallSummary: string;
+  WaterfallMetrics: WaterfallMetrics;
+  WaterfallSteps: WaterfallStep[];
+}
+
+const Upload: React.FC = () => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
     if (file) {
       // Validate file type
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
@@ -22,7 +49,7 @@ const Upload = () => {
     }
   };
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     
     if (!selectedFile) {
@@ -44,7 +71,7 @@ const Upload = () => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Mock response data - in real app this would come from your backend
-      const mockResults = {
+      const mockResults: MockResults = {
         WaterfallSummary: "This document contains waterfall distribution information with 5 steps and multiple allocation tiers.",
         WaterfallMetrics: {
           "Total Distribution": 100000000,
@@ -109,8 +136,15 @@ const Upload = () => {
   };
 
   return (
-    <Layout title="Upload Document">
-      <h2 className="mb-4">Upload a Document</h2>
+    <Layout>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 className="mb-0">Upload a Document</h2>
+        {user && (
+          <span className="text-muted">
+            Welcome back, {user.firstName || user.name}!
+          </span>
+        )}
+      </div>
       <form 
         onSubmit={handleSubmit} 
         className="p-4 border rounded bg-white shadow-sm"
