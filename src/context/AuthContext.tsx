@@ -1,33 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-// Type definitions
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  createdAt?: string;
-}
-
-interface LoginResponse {
-  success: boolean;
-  user?: User;
-  error?: string;
-}
-
-interface SignupResponse {
-  success: boolean;
-  user?: User;
-  error?: string;
-}
-
-interface SignupData {
-  email: string;
-  firstName: string;
-  lastName: string;
-  password?: string;
-}
+import { authApi } from '../services';
+import type { User, SignupData, LoginResponse, SignupResponse } from '../services';
 
 interface AuthContextType {
   user: User | null;
@@ -60,14 +33,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async (): Promise<void> => {
       try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const userData: User = JSON.parse(storedUser);
-          setUser(userData);
+        const result = await authApi.getCurrentUser();
+        if (result.success && result.data) {
+          setUser(result.data);
         }
       } catch (error) {
         console.error('Error checking authentication:', error);
-        localStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
@@ -78,33 +49,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<LoginResponse> => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await authApi.login(email, password);
       
-      // Mock authentication - in real app, this would be an API call
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const foundUser = users.find(u => u.email === email);
-      
-      if (!foundUser) {
-        throw new Error('User not found');
+      if (result.success && result.data) {
+        setUser(result.data);
+        return { success: true, user: result.data };
+      } else {
+        return { success: false, error: result.error || 'Login failed' };
       }
-      
-      // In real app, you'd verify the password hash
-      // For now, we'll just simulate successful login (password unused in mock)
-      console.log('Login attempt with password:', password.length > 0 ? 'provided' : 'empty');
-      
-      const userData: User = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-        firstName: foundUser.firstName,
-        lastName: foundUser.lastName
-      };
-      
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      
-      return { success: true, user: userData };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return { success: false, error: errorMessage };
@@ -113,34 +65,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signup = async (userData: SignupData): Promise<SignupResponse> => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Check if email already exists
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const emailExists = users.some(u => u.email === userData.email);
-      
-      if (emailExists) {
-        throw new Error('An account with this email already exists');
-      }
-      
-      // Create new user
-      const newUser: User = {
-        id: Date.now(),
+      const result = await authApi.signup({
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        name: `${userData.firstName} ${userData.lastName}`,
-        createdAt: new Date().toISOString()
-      };
+        password: userData.password || ''
+      });
       
-      // Store user
-      const updatedUsers = [...users, newUser];
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
-      
-      return { success: true, user: newUser };
+      if (result.success && result.data) {
+        setUser(result.data);
+        return { success: true, user: result.data };
+      } else {
+        return { success: false, error: result.error || 'Signup failed' };
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return { success: false, error: errorMessage };
@@ -148,7 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = (): void => {
-    localStorage.removeItem('user');
+    authApi.logout();
     setUser(null);
   };
 
@@ -173,4 +110,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 };
 
 export default AuthContext;
-export type { User, LoginResponse, SignupResponse, SignupData, AuthContextType };
+export type { AuthContextType };

@@ -2,31 +2,7 @@ import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import { useAuth } from '../context/AuthContext';
-
-interface WaterfallStep {
-  StepNumber: number;
-  Description: string;
-  Threshold: string | number;
-  Split: {
-    LPs: number;
-    GP: number;
-  };
-  "Amount Distributed": number;
-}
-
-interface WaterfallMetrics {
-  "Total Distribution": number;
-  "Number of Steps": number;
-  "Distribution Type": string;
-  "Management Fee": number;
-  "Carried Interest": number;
-}
-
-interface MockResults {
-  WaterfallSummary: string;
-  WaterfallMetrics: WaterfallMetrics;
-  WaterfallSteps: WaterfallStep[];
-}
+import { lapCalculationApi } from '../services';
 
 const Upload: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -37,14 +13,15 @@ const Upload: React.FC = () => {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-      if (!allowedTypes.includes(file.type)) {
-        alert('Please select a valid file type (PDF, JPG, PNG)');
+      // Use the API service for validation
+      const validation = lapCalculationApi.validateFile(file);
+      if (!validation.isValid) {
+        alert(validation.error);
         event.target.value = '';
         setSelectedFile(null);
         return;
       }
+
       setSelectedFile(file);
     }
   };
@@ -60,72 +37,22 @@ const Upload: React.FC = () => {
     setUploading(true);
 
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      // In a real app, you would make an API call here
-      // For now, we'll simulate processing and navigate to results with mock data
+      // Use the API service for upload and processing
+      const uploadResult = await lapCalculationApi.uploadDocument(selectedFile);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock response data - in real app this would come from your backend
-      const mockResults: MockResults = {
-        WaterfallSummary: "This document contains waterfall distribution information with 5 steps and multiple allocation tiers.",
-        WaterfallMetrics: {
-          "Total Distribution": 100000000,
-          "Number of Steps": 5,
-          "Distribution Type": "European Waterfall",
-          "Management Fee": 2.5,
-          "Carried Interest": 20.0
-        },
-        WaterfallSteps: [
-          {
-            "StepNumber": 1,
-            "Description": "Return of Capital",
-            "Threshold": 0,
-            "Split": {
-              "LPs": 100.0,
-              "GP": 0.0
-            },
-            "Amount Distributed": 50000000
-          },
-          {
-            "StepNumber": 2,
-            "Description": "Preferred Return",
-            "Threshold": 8.0,
-            "Split": {
-              "LPs": 100.0,
-              "GP": 0.0
-            },
-            "Amount Distributed": 20000000
-          },
-          {
-            "StepNumber": 3,
-            "Description": "Catch-up",
-            "Threshold": "Until GP reaches 20%",
-            "Split": {
-              "LPs": 0.0,
-              "GP": 100.0
-            },
-            "Amount Distributed": 15000000
-          },
-          {
-            "StepNumber": 4,
-            "Description": "Carried Interest Split",
-            "Threshold": "Thereafter",
-            "Split": {
-              "LPs": 80.0,
-              "GP": 20.0
-            },
-            "Amount Distributed": 15000000
-          }
-        ]
-      };
-
-      // Navigate to results page with data
-      navigate('/results', { state: { data: mockResults } });
+      if (uploadResult.success && uploadResult.data) {
+        // Get the processing results using the document ID
+        const resultsResponse = await lapCalculationApi.getResults(uploadResult.data.documentId);
+        
+        if (resultsResponse.success && resultsResponse.data) {
+          // Navigate to results page with data
+          navigate('/results', { state: { data: resultsResponse.data } });
+        } else {
+          throw new Error(resultsResponse.error || 'Failed to get processing results');
+        }
+      } else {
+        throw new Error(uploadResult.error || 'Upload failed');
+      }
 
     } catch (error) {
       console.error('Upload error:', error);
@@ -165,7 +92,7 @@ const Upload: React.FC = () => {
           />
           {selectedFile && (
             <div className="mt-2 text-muted">
-              Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+              Selected: {selectedFile.name} ({lapCalculationApi.formatFileSize(selectedFile.size)})
             </div>
           )}
         </div>
