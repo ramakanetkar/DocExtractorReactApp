@@ -1,7 +1,7 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Layout from './Layout';
-import { useAuth } from '../context/AuthContext';
+import Layout from '../layout/Layout';
+import { useAuth } from '../../context/AuthContext';
 
 interface SignupFormData {
   firstName: string;

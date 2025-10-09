@@ -1,12 +1,15 @@
 // Essential type definitions for API responses
 
-// Base API response structure
-export interface BaseApiResponse<T = any> {
+// Base API response structure - used across all API services
+export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
   message?: string;
 }
+
+// Legacy alias for backwards compatibility
+export type BaseApiResponse<T = any> = ApiResponse<T>;
 
 // User types
 export interface AuthUser {
@@ -16,20 +19,6 @@ export interface AuthUser {
   lastName: string;
   name: string;
   token?: string;
-}
-
-// Document types
-export interface DocumentProcessingResult {
-  id: string;
-  filename: string;
-  processedData: any;
-  status: 'processing' | 'completed' | 'failed';
-}
-
-// Form validation
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
 }
 
 // Loading state
