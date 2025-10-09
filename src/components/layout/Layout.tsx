@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -45,19 +45,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto">
               {isAuthenticated() && (
-                <li className="nav-item">
-                  <Link className="nav-link" to="/">Upload Document</Link>
-                </li>
+                <>
+                  <li className="nav-item">
+                    <Link className="nav-link" to="/agreements">Agreements</Link>
+                  </li>
+                </>
               )}
-              <li className="nav-item">
-                <span className="nav-link disabled">Funds Data (Coming Soon)</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-link disabled">Calculations (Coming Soon)</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-link disabled">About</span>
-              </li>
             </ul>
             <ul className="navbar-nav ms-auto">
               {isAuthenticated() ? (

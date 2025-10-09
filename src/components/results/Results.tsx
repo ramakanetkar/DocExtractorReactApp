@@ -1,8 +1,10 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import Layout from './Layout';
+import Layout from '../layout/Layout';
+import { documentsApi } from '../../services';
+import type { LPADocument } from '../../types';
 
 interface WaterfallStep {
   StepNumber?: number;
@@ -34,6 +36,7 @@ interface ResultsData {
 
 interface LocationState {
   data?: ResultsData;
+  documentId?: string;
 }
 
 interface CollapsibleSectionProps {
@@ -49,8 +52,46 @@ interface ExpandedSections {
 const Results: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState;
-  const { data } = state || {};
+  const [data, setData] = useState<ResultsData | undefined>(state?.data);
+  const [loading, setLoading] = useState<boolean>(false);
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
+
+  // Load document if documentId is provided instead of data
+  useEffect(() => {
+    const loadDocument = async () => {
+      if (!state?.data && state?.documentId) {
+        setLoading(true);
+        try {
+          const response = await documentsApi.getLPA(state.documentId);
+          if (response.success && response.data) {
+            setData(response.data as any);
+          }
+        } catch (error) {
+          console.error('Failed to load document:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDocument();
+  }, [state?.documentId, state?.data]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Layout>
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+          <div className="text-center">
+            <div className="spinner-border text-primary mb-3" role="status" style={{ width: '3rem', height: '3rem' }}>
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="text-muted">Loading document...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   // Redirect to upload if no data
   if (!data) {
